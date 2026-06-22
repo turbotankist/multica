@@ -1,7 +1,7 @@
 // Package agent provides a unified interface for executing prompts via
 // coding agents (Claude Code, CodeBuddy, Codex, Copilot, OpenCode, OpenClaw,
-// Hermes, Gemini, Pi, Cursor, Kimi, Kiro, Antigravity). It mirrors the happy-cli
-// AgentBackend pattern, translated to idiomatic Go.
+// Hermes, Gemini, Pi, Cursor, Kimi, Kiro, Antigravity, Forge). It mirrors the
+// happy-cli AgentBackend pattern, translated to idiomatic Go.
 package agent
 
 import (
@@ -133,12 +133,13 @@ type Config struct {
 }
 
 // New creates a Backend for the given agent type.
-// Supported types: "claude", "codebuddy", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "cursor", "kimi", "kiro", "antigravity".
+// Supported types: "claude", "codebuddy", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "cursor", "kimi", "kiro", "antigravity", "forge".
 //
 // SupportedTypes is the canonical whitelist of agent types New can construct.
 // It MUST stay in lockstep with the switch in New below and the
-// runtime_profile.protocol_family CHECK constraint (migration 120): a custom
-// runtime profile may only be based on a backend Multica officially supports.
+// runtime_profile.protocol_family CHECK constraint (migration 120 + 123): a
+// custom runtime profile may only be based on a backend Multica officially
+// supports.
 var SupportedTypes = []string{
 	"claude",
 	"codebuddy",
@@ -153,6 +154,7 @@ var SupportedTypes = []string{
 	"kimi",
 	"kiro",
 	"antigravity",
+	"forge",
 }
 
 // IsSupportedType reports whether agentType is in the SupportedTypes whitelist.
@@ -199,8 +201,10 @@ func New(agentType string, cfg Config) (Backend, error) {
 		return &kiroBackend{cfg: cfg}, nil
 	case "antigravity":
 		return &antigravityBackend{cfg: cfg}, nil
+	case "forge":
+		return &forgeBackend{cfg: cfg}, nil
 	default:
-		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, antigravity)", agentType)
+		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, antigravity, forge)", agentType)
 	}
 }
 
@@ -222,6 +226,7 @@ var launchHeaders = map[string]string{
 	"codex":       "codex app-server",
 	"copilot":     "copilot (json)",
 	"cursor":      "cursor-agent (stream-json)",
+	"forge":       "forge --prompt (one-shot mode)",
 	"gemini":      "gemini (stream-json)",
 	"hermes":      "hermes acp",
 	"kimi":        "kimi acp",

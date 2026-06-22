@@ -142,6 +142,10 @@ func ListModels(ctx context.Context, providerType, executablePath string) ([]Mod
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			return discoverOpenclawAgents(ctx, executablePath)
 		})
+	case "forge":
+		return cachedDiscovery(discoveryCacheKey(providerType, executablePath), func() ([]Model, error) {
+			return discoverForgeModels(ctx, executablePath)
+		})
 	case "codebuddy":
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			models, err := discoverCodebuddyModels(ctx, executablePath)
@@ -1379,7 +1383,81 @@ func isOpenclawIdentifier(s string) bool {
 	return true
 }
 
+// ── Forge model discovery ──
+
+// discoverForgeModels runs `forge list model --porcelain` and parses its
+// tabular output. On any failure (binary missing, parse error, timeout) it
+// returns an empty list so the creatable UI still works.
+func discoverForgeModels(ctx context.Context, executablePath string) ([]Model, error) {
+	if executablePath == "" {
+		executablePath = "forge"
+	}
+	if _, err := exec.LookPath(executablePath); err != nil {
+		return []Model{}, nil
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, executablePath, "list", "model", "--porcelain")
+	hideAgentWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil && len(out) == 0 {
+		return []Model{}, nil
+	}
+	models := parseForgeModels(string(out))
+	if len(models) == 0 {
+		return []Model{}, nil
+	}
+	return models, nil
+}
+
+// parseForgeModels accepts `forge list model --porcelain` output. The format is
+// a space-padded table whose first line is the header (ID, MODEL, PROVIDER, …);
+// subsequent lines have at least two consecutive spaces between columns. We
+// split on two-or-more spaces to extract the model ID (column 0), label
+// (column 1, may contain single spaces), and provider (column 3 — the raw
+// provider_id token such as "claude_code" or "openai").
+func parseForgeModels(output string) []Model {
+	lines := strings.Split(output, "\n")
+	var models []Model
+	seen := map[string]bool{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		fields := multiSpaceRe.Split(line, -1)
+		if len(fields) < 2 {
+			continue
+		}
+		id := strings.TrimSpace(fields[0])
+		// Skip the header row.
+		if strings.EqualFold(id, "ID") || id == "" {
+			continue
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		label := strings.TrimSpace(fields[1])
+		if label == "" {
+			label = id
+		}
+		provider := ""
+		if len(fields) >= 4 {
+			// Column 3 is the provider_id (e.g. "claude_code", "openai").
+			provider = strings.TrimSpace(fields[3])
+		} else if len(fields) >= 3 {
+			provider = strings.TrimSpace(fields[2])
+		}
+		models = append(models, Model{ID: id, Label: label, Provider: provider})
+	}
+	return models
+}
+
 // ── CodeBuddy model discovery ──
+
+// multiSpaceRe matches two or more consecutive whitespace characters and is
+// used to split space-padded tabular output (e.g. `forge list model --porcelain`).
+var multiSpaceRe = regexp.MustCompile(`\s{2,}`)
 
 // codebuddyModelRe matches the `--model <model> ... Currently supported: (m1, m2, ...)`
 // line in `codebuddy --help` output.

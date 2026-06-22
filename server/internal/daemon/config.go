@@ -300,8 +300,13 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	if e, ok := probe("MULTICA_ANTIGRAVITY_PATH", "agy", "MULTICA_ANTIGRAVITY_MODEL"); ok {
 		agents["antigravity"] = e
 	}
+	// Forge uses FORGE_MODEL_ID (not a --model flag) for model selection; the
+	// MULTICA_FORGE_MODEL env var seeds the daemon-wide default model ID.
+	if e, ok := probe("MULTICA_FORGE_PATH", "forge", "MULTICA_FORGE_MODEL"); ok {
+		agents["forge"] = e
+	}
 	if len(agents) == 0 {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, kiro-cli, or agy and ensure it is on PATH")
+		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, kiro-cli, agy, or forge and ensure it is on PATH")
 	}
 
 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
@@ -650,7 +655,7 @@ func shellArgsFromEnv(name string) ([]string, error) {
 // invocation, instead of paying the cost-per-miss.
 var defaultAgentCommandNames = []string{
 	"claude", "codex", "opencode", "openclaw", "hermes",
-	"gemini", "pi", "cursor-agent", "copilot", "kimi", "kiro-cli", "codebuddy", "agy",
+	"gemini", "pi", "cursor-agent", "copilot", "kimi", "kiro-cli", "codebuddy", "agy", "forge",
 }
 
 var codexDesktopAppBundlePaths = func() []string {
