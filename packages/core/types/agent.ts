@@ -69,6 +69,7 @@ export const RUNTIME_PROFILE_PROTOCOL_FAMILIES = [
   "kimi",
   "kiro",
   "antigravity",
+  "forge",
 ] as const;
 
 export type RuntimeProtocolFamily =

@@ -13,12 +13,12 @@ import (
 // forgeBlockedArgs are flags hardcoded by the daemon that must not be
 // overridden by user-configured custom_args.
 var forgeBlockedArgs = map[string]blockedArgMode{
-	"-p":                blockedWithValue,  // owned by the prompt arg
+	"-p":                blockedWithValue, // owned by the prompt arg
 	"--prompt":          blockedWithValue,
-	"-C":                blockedWithValue,  // task workdir anchor
+	"-C":                blockedWithValue, // task workdir anchor
 	"--directory":       blockedWithValue,
-	"--conversation-id": blockedWithValue,  // managed via ExecOptions.ResumeSessionID
-	"--sandbox":         blockedWithValue,  // daemon manages the workdir; sandbox would create a nested worktree
+	"--conversation-id": blockedWithValue, // managed via ExecOptions.ResumeSessionID
+	"--sandbox":         blockedWithValue, // daemon manages the workdir; sandbox would create a nested worktree
 }
 
 // forgeBackend implements Backend by spawning `forge --prompt <prompt>` in
@@ -60,6 +60,15 @@ func (b *forgeBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	}
 	if opts.ThinkingLevel != "" {
 		b.cfg.Logger.Warn("forge does not support thinking levels; ignoring", "level", opts.ThinkingLevel)
+	}
+	// Forge's one-shot mode has no flag to inject a developer/system prompt and
+	// no MCP config channel; warn rather than fail so a configured-but-ignored
+	// value isn't a silent surprise (mirrors the MaxTurns/ThinkingLevel pattern).
+	if opts.SystemPrompt != "" {
+		b.cfg.Logger.Warn("forge does not support a system prompt flag; ignoring")
+	}
+	if len(opts.McpConfig) > 0 {
+		b.cfg.Logger.Warn("forge does not support MCP config; ignoring")
 	}
 	args = append(args, filterCustomArgs(opts.CustomArgs, forgeBlockedArgs, b.cfg.Logger)...)
 
@@ -165,7 +174,7 @@ func (b *forgeBackend) processOutput(r io.Reader, ch chan<- Message) forgeScanRe
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, forgeTitleLinePrefix) {
-			b.handleEventLine(line, ch, &sessionID, &finalStatus, &finalError)
+			b.handleEventLine(line, ch, &sessionID)
 			continue
 		}
 		// Plain text output from the model.
@@ -200,7 +209,11 @@ func (b *forgeBackend) processOutput(r io.Reader, ch chan<- Message) forgeScanRe
 // handleEventLine processes a single forge event line of the form
 // "● [HH:MM:SS] EventType [data...]". It extracts the session ID from
 // Initialize events and emits a running status ping for all other events.
-func (b *forgeBackend) handleEventLine(line string, ch chan<- Message, sessionID *string, finalStatus, finalError *string) {
+//
+// Forge's text protocol has no machine-readable failure event, so this never
+// sets a failed status; run failure is detected from the process exit code in
+// Execute. If forge gains a structured error line, branch on it here.
+func (b *forgeBackend) handleEventLine(line string, ch chan<- Message, sessionID *string) {
 	// Strip the "● [" prefix and find the closing bracket of the timestamp.
 	rest := strings.TrimPrefix(line, "● [")
 	closeBracket := strings.Index(rest, "]")
@@ -227,8 +240,6 @@ func (b *forgeBackend) handleEventLine(line string, ch chan<- Message, sessionID
 			trySend(ch, Message{Type: MessageStatus, Status: "running", SessionID: data})
 		}
 	default:
-		_ = finalStatus
-		_ = finalError
 		_ = data
 		trySend(ch, Message{Type: MessageStatus, Status: "running"})
 	}

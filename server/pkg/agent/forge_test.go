@@ -101,15 +101,11 @@ func TestForgeHandleEventLineInitialize(t *testing.T) {
 	b := &forgeBackend{cfg: Config{Logger: slog.Default()}}
 	ch := make(chan Message, 10)
 
-	var sessionID, finalStatus, finalError string
-	finalStatus = "completed"
-	b.handleEventLine("● [15:09:21] Initialize my-session-uuid", ch, &sessionID, &finalStatus, &finalError)
+	var sessionID string
+	b.handleEventLine("● [15:09:21] Initialize my-session-uuid", ch, &sessionID)
 
 	if sessionID != "my-session-uuid" {
 		t.Errorf("sessionID: got %q, want %q", sessionID, "my-session-uuid")
-	}
-	if finalStatus != "completed" {
-		t.Errorf("status should remain completed, got %q", finalStatus)
 	}
 
 	msg := <-ch
@@ -127,15 +123,11 @@ func TestForgeHandleEventLineUnknown(t *testing.T) {
 	b := &forgeBackend{cfg: Config{Logger: slog.Default()}}
 	ch := make(chan Message, 10)
 
-	var sessionID, finalStatus, finalError string
-	finalStatus = "completed"
-	b.handleEventLine("● [15:09:22] Summary all done", ch, &sessionID, &finalStatus, &finalError)
+	var sessionID string
+	b.handleEventLine("● [15:09:22] Summary all done", ch, &sessionID)
 
 	if sessionID != "" {
 		t.Errorf("sessionID should be empty, got %q", sessionID)
-	}
-	if finalStatus != "completed" {
-		t.Errorf("status should remain completed, got %q", finalStatus)
 	}
 
 	msg := <-ch
@@ -150,10 +142,9 @@ func TestForgeHandleEventLineMalformed(t *testing.T) {
 	b := &forgeBackend{cfg: Config{Logger: slog.Default()}}
 	ch := make(chan Message, 10)
 
-	var sessionID, finalStatus, finalError string
-	finalStatus = "completed"
+	var sessionID string
 	// No closing bracket — should not panic and should still send a status ping.
-	b.handleEventLine("● [no closing bracket here", ch, &sessionID, &finalStatus, &finalError)
+	b.handleEventLine("● [no closing bracket here", ch, &sessionID)
 
 	msg := <-ch
 	if msg.Type != MessageStatus {

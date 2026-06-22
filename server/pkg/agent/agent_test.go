@@ -91,13 +91,9 @@ func TestLaunchHeaderCoversAllSupportedBackends(t *testing.T) {
 
 	// The factory in New() enumerates every supported agent type; LaunchHeader
 	// must stay in sync so the UI preview never shows an empty skeleton for a
-	// runtime the daemon actually spawns. If a new backend is added, add an
-	// entry to launchHeaders in agent.go and extend this list.
-	supported := []string{
-		"antigravity", "claude", "codebuddy", "codex", "copilot", "cursor", "gemini",
-		"hermes", "kimi", "kiro", "openclaw", "opencode", "pi",
-	}
-	for _, t_ := range supported {
+	// runtime the daemon actually spawns. Iterate SupportedTypes directly so a
+	// new backend is covered automatically once it's added there.
+	for _, t_ := range SupportedTypes {
 		if header := LaunchHeader(t_); header == "" {
 			t.Errorf("LaunchHeader(%q) returned empty string — add it to launchHeaders", t_)
 		}
